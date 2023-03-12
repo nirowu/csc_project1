@@ -20,9 +20,8 @@ void get_ik(int type, uint8_t *key)
     // (Ref. RFC2367 Section 2.3.4 & 2.4 & 3.1.10)
 
     int     sockfd,
-            msglen,
             mypid = getpid();
-    char    buf[4096], copy[4096], *ptr;
+    char    buf[4096];
     uint8_t keylen; 
     
     struct sadb_msg req;
@@ -43,8 +42,9 @@ void get_ik(int type, uint8_t *key)
         perror("write_msg()");
     }
 
-    msglen = read(sockfd, &buf, sizeof(buf));
-    memcpy(copy, buf, msglen);
+    if (read(sockfd, &buf, sizeof(buf)) < 0) {
+        perror("read_msg()");
+    }
 
     size_t offset = sizeof(struct sadb_msg);
     struct sadb_ext *ext;
@@ -59,8 +59,7 @@ void get_ik(int type, uint8_t *key)
     struct sadb_key* keyptr = (struct sadb_key*) (buf + offset);
     keylen = keyptr->sadb_key_len * 8;
 
-    memcpy(key, copy + (offset + sizeof(struct sadb_key)), keylen);
-
+    memcpy(key, buf + (offset + sizeof(struct sadb_key)), keylen);
     close(sockfd);
     return;
 
@@ -85,7 +84,7 @@ uint8_t *set_esp_pad(Esp *self)
     self->pad[w-1] = (uint8_t) w;
 
     memcpy(self->pl + self->plen, self->pad, w);
-    
+    puts("uu");
     return self->pad;
 }
 
