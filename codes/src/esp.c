@@ -43,47 +43,21 @@ void get_ik(int type, uint8_t *key)
         perror("write_msg()");
     }
 
-    //
-    struct receive_msg {
-        struct sadb_msg base;
-        struct sadb_sa SA;
-        struct sadb_address SD;
-        struct sadb_key AE;
-    };
-    struct receive_msg *recv;
-    //
-
     msglen = read(sockfd, &buf, sizeof(buf));
     memcpy(copy, buf, msglen);
-    recv = (struct sadb_msg*) &buf;
-    //
-    printf("recv sadb_msg_satype:%d\n",  (recv->base.sadb_msg_satype));
-    printf("recv sadb_msg_len:%d\n", (recv->base.sadb_msg_len));
-    printf("recv sadb_msg_errno:%d\n",  (recv->base.sadb_msg_errno));
-    printf("recv sadb_msg_seq:%d\n",  (recv->base.sadb_msg_seq));
-    //
+
     size_t offset = sizeof(struct sadb_msg);
-    printf("offset:%ld\n", offset);
     struct sadb_ext *ext;
 
     while (true) {
-        // ext = (struct sadb_ext*) &(buf[offset]);
-        ptr = &buf + offset;
-        ext = (struct sadb_ext*) &(ptr);
-        // printf("type:%ld\n", ext->sadb_ext_type);
+        ext = (struct sadb_ext*) (buf + offset);
         if (ext->sadb_ext_type == SADB_EXT_KEY_AUTH) {
-            puts("gotcha");
             break;
         }
-        offset += ext->sadb_ext_len;
-        printf("add: %d\n", ext->sadb_ext_len);
+        offset += ext->sadb_ext_len * 8;
     }
-    ptr = &buf + offset;
-    struct sadb_key* keyptr = (struct sadb_key*) &(ptr);
-    keylen = keyptr->sadb_key_len;
-    printf("msglen: %d\n",msglen);
-    printf("offset:%d\n", offset);
-    printf("keylen:%d\n", keylen);
+    struct sadb_key* keyptr = (struct sadb_key*) (buf + offset);
+    keylen = keyptr->sadb_key_len * 8;
 
     memcpy(key, copy + (offset + sizeof(struct sadb_key)), keylen);
 
