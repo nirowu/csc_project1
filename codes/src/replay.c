@@ -22,21 +22,28 @@ void tx_esp_rep(Dev dev,
     size_t nb = dlen;
 
     txp.plen = dlen;
+
     txp.fmt_rep(&txp, net.ip4hdr, data, nb);
     nb += sizeof(struct tcphdr);
 
     esp.plen = nb;
+
     esp.fmt_rep(&esp, TCP);
+
     esp.set_padpl(&esp);
+
     memcpy(esp.pl, &txp.thdr, txp.hdrlen);
     memcpy(esp.pl + txp.hdrlen, txp.pl, txp.plen);
+
     esp.set_auth(&esp, hmac_sha1_96);
     nb += sizeof(EspHeader) + sizeof(EspTrailer) +
         esp.tlr.pad_len + esp.authlen;
 
     net.plen = nb;
-    net.fmt_rep(&net);
+    // puts("esp_done");
 
+    net.fmt_rep(&net);
+    // puts("net");
     dev.fmt_frame(&dev, net, esp, txp);
 
     dev.tx_frame(&dev);

@@ -17,6 +17,7 @@ uint16_t cal_tcp_cksm(struct iphdr iphdr, struct tcphdr tcphdr, uint8_t *pl, int
   // reference: https://github.com/imjdl/rowsock/blob/master/tcp4/sendData.c (320)
 
 	unsigned int sum = 0;
+
 	uint8_t *buffer = (uint8_t *)malloc(IP_MAXPACKET * sizeof(uint8_t));
 
 	// TCP segment
@@ -53,7 +54,7 @@ uint16_t cal_tcp_cksm(struct iphdr iphdr, struct tcphdr tcphdr, uint8_t *pl, int
 	
 	sum = ~sum;
 	
-	free(buffer);
+	// free(buffer);
 
   return (uint16_t)sum;
 }
@@ -91,9 +92,9 @@ Txp *fmt_tcp_rep(Txp *self, struct iphdr iphdr, uint8_t *data, size_t dlen)
     
     self->thdr.seq = self->x_tx_seq;
     self->thdr.ack_seq = self->x_tx_ack;
-
+    // puts("got"); 
     self->thdr.th_sum = cal_tcp_cksm(iphdr, self->thdr, data, dlen);
-
+    // printf("cksum%d\n", self->thdr.th_sum); 
     char tcp_flags[8];
     // FIN
     tcp_flags[0] = 0;

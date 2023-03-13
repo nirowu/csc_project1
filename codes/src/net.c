@@ -43,6 +43,7 @@ uint8_t *dissect_ip(Net *self, uint8_t *pkt, size_t pkt_len)
     // [TODO]: Collect information from pkt.
     // Return payload of network layer
 
+
     self->plen= (uint16_t) (pkt_len - sizeof(self->ip4hdr));
     uint8_t *pl = (uint8_t*) malloc(self->plen);
 
@@ -52,6 +53,11 @@ uint8_t *dissect_ip(Net *self, uint8_t *pkt, size_t pkt_len)
     self->pro = self->ip4hdr.protocol;
     self->hdrlen = self->ip4hdr.ihl * 4; 
     self->ip4hdr.tot_len = (uint16_t)pkt_len;
+
+    // self->x_src_ip = self->ip4hdr.saddr;
+    // self->x_dst_ip = self->ip4hdr.daddr;
+    strcpy(self->x_src_ip, &self->ip4hdr.saddr);
+    strcpy(self->x_dst_ip, &self->ip4hdr.daddr);
 
 
     return pl;

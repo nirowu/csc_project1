@@ -57,9 +57,16 @@ void get_ik(int type, uint8_t *key)
         offset += ext->sadb_ext_len * 8;
     }
     struct sadb_key* keyptr = (struct sadb_key*) (buf + offset);
-    keylen = keyptr->sadb_key_len * 8;
+    keylen = (keyptr->sadb_key_len * 8) - sizeof(struct sadb_key);
 
     memcpy(key, buf + (offset + sizeof(struct sadb_key)), keylen);
+
+    // printf("key: %2x\n", key);
+    // printf("keylen:%d\n", keylen);
+    // for (int i = 0; i < keylen; i++) {
+    //     printf("%02x ", key[i]);
+    // }
+    // printf("\n");   
     close(sockfd);
     return;
 
@@ -72,7 +79,7 @@ void get_esp_key(Esp *self)
 uint8_t *set_esp_pad(Esp *self)
 {
     // [TODO]: Fill up self->pad and self->pad_len (Ref. RFC4303 Section 2.4)
-    int pad_len = SHA_BLOCKSIZE * ((self->plen + SHA_BLOCKSIZE - 1) / SHA_BLOCKSIZE);
+    int pad_len = 4* ((self->plen + 4 - 1) / 4);
     int w = pad_len - self->plen;
     self->tlr.pad_len = (uint8_t)w;
 
@@ -81,10 +88,8 @@ uint8_t *set_esp_pad(Esp *self)
     for (r = 0; r < w - 1; r++)
         self->pad[r] = rand() & 0xff;
     
-    self->pad[w-1] = (uint8_t) w;
-
+    self->pad[w-1] = (uint8_t) w;   
     memcpy(self->pl + self->plen, self->pad, w);
-    puts("uu");
     return self->pad;
 }
 
@@ -105,8 +110,13 @@ uint8_t *set_esp_auth(Esp *self,
 
     // [TODO]: Put everything needed to be authenticated into buff and add up nb
 
-    nb = sizeof(self->hdr) + self->plen + sizeof(self->tlr);
-    memcpy(buff, self, nb);
+    memcpy(buff, &self->hdr, sizeof(self->hdr));
+    nb += sizeof(self->hdr);
+    memcpy(buff + nb, self->pl, self->plen);
+    nb += self->plen;
+    memcpy(buff + nb, &self->tlr, sizeof(self->tlr));
+    nb += sizeof(self->tlr);
+
 
     ret = hmac(self->esp_key, esp_keylen, buff, nb, self->auth);
 
@@ -137,10 +147,12 @@ uint8_t *dissect_esp(Esp *self, uint8_t *esp_pkt, size_t esp_len)
 Esp *fmt_esp_rep(Esp *self, Proto p)
 {
     // [TODO]: Fill up ESP header and trailer (prepare to send)
-    self->pl = self->dissect;
-    self->pad = self->set_padpl;
-    self->tlr.nxt = p;
-    self->auth = self->set_auth;
+    self->hdr.spi = esp_hdr_rec.spi;
+    self->hdr.seq = esp_hdr_rec.seq + 1;
+    // self->pl = self->dissect;
+    // self->pad = self->set_esp_pad(self, );
+    self->tlr.nxt = p; // tcp 
+    // self->auth = self->set_auth;
 
     return self;
 

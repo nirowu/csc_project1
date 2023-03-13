@@ -69,8 +69,10 @@ void fmt_frame(Dev *self, Net net, Esp esp, Txp txp)
 {
     // [TODO]: store the whole frame into self->frame
     // and store the length of the frame into self->framelen
-    self->framelen = sizeof(net.ip4hdr) + sizeof(esp.hdr) + sizeof(txp.thdr) + txp.plen + sizeof(esp.tlr) + esp.authlen;
+    self->framelen = sizeof(self->linkhdr) + sizeof(net.ip4hdr) + sizeof(esp.hdr) + sizeof(txp.thdr) + txp.plen + sizeof(esp.tlr) + esp.authlen;
     uint16_t offset = 0;
+    memcpy(self->frame, &self->linkhdr, sizeof(self->linkhdr));
+    offset += sizeof(self->linkhdr);
     memcpy(self->frame + offset, &net.ip4hdr, sizeof(net.ip4hdr));
     offset += sizeof(net.ip4hdr);
     memcpy(self->frame + offset, &esp.hdr , sizeof(esp.hdr));
