@@ -29,7 +29,7 @@ void get_ik(int type, uint8_t *key)
     req.sadb_msg_pid = (mypid);
     req.sadb_msg_seq = (1);
 
-    sockfd = socket(AF_KEY, SOCK_RAW, PF_KEY_V2);
+    sockfd = socket(PF_KEY, SOCK_RAW, PF_KEY_V2);
     if (sockfd < 0) {
         perror("socket");
         exit(EXIT_FAILURE);
@@ -58,12 +58,12 @@ void get_ik(int type, uint8_t *key)
 
     memcpy(key, buf + (offset + sizeof(struct sadb_key)), keylen);
 
-    // printf("key: %2x\n", key);
     // printf("keylen:%d\n", keylen);
     // for (int i = 0; i < keylen; i++) {
     //     printf("%02x ", key[i]);
     // }
     // printf("\n");   
+
     close(sockfd);
     return;
 
@@ -76,17 +76,20 @@ void get_esp_key(Esp *self)
 uint8_t *set_esp_pad(Esp *self)
 {
     // [TODO]: Fill up self->pad and self->pad_len (Ref. RFC4303 Section 2.4)
-    int pad_len = 4* ((self->plen + 4 - 1) / 4);
-    int w = pad_len - self->plen;
+
+    int pad_len = 4 * (( (sizeof(self->hdr) + self->plen + sizeof(self->tlr)) + 3) / 4);
+    int w = pad_len - self->plen - 10;
     self->tlr.pad_len = (uint8_t)w;
 
+
     // Generating the padding field
-    int r;
-    for (r = 0; r < w - 1; r++)
-        self->pad[r] = rand() & 0xff;
+    uint8_t r;
+    for (r = 1; r <= w ; r++)
+        self->pad[r - 1] = r;
     
-    self->pad[w-1] = (uint8_t) w;   
+    // self->pad[w-1] = (uint8_t) w;   
     memcpy(self->pl + self->plen, self->pad, w);
+    // self->plen 
     return self->pad;
 }
 
@@ -131,21 +134,81 @@ uint8_t *dissect_esp(Esp *self, uint8_t *esp_pkt, size_t esp_len)
     // [TODO]: Collect information from esp_pkt.
     // Return payload of ESP
 
-    self->plen = esp_len - (sizeof(self->hdr) + sizeof(self->tlr));
-    size_t offset = 0;
+    // self->plen = esp_len - (sizeof(self->hdr) + sizeof(self->tlr));
+    // size_t  offset = 0,
+    //         tcphdrlen = 0,
+    //         tcppl_len = esp_len - sizeof(self->hdr);
+    // uint8_t pad_len = 0;
+
+    // uint8_t* payload = (uint8_t*)malloc(esp_len); 
+    // memcpy(&(self->hdr), esp_pkt, sizeof(self->hdr));
+    // offset += sizeof(self->hdr);
+
+    // tcphdrlen = *(esp_pkt + 8 + 12) / 16 * 4;
+    // memcpy(payload, esp_pkt + offset, tcphdrlen);
+    // offset += tcphdrlen;    
+    
+    // pad_len = *(esp_pkt + esp_len - 12 - 1 - 1);
+    // tcppl_len -= (tcphdrlen + 12 + 1 + 1 + pad_len);
+    // memcpy(payload + tcphdrlen, esp_pkt + offset, tcppl_len);
+    // offset += tcppl_len;
+    
+    // memcpy(self->pad, esp_pkt + offset, pad_len);
+    // offset += pad_len;
+    
+    // memcpy(&(self->tlr), esp_pkt + offset, sizeof(self->tlr));
+    // offset += sizeof(self->tlr);
+    // self->authlen = 12;
+    // memcpy(self->auth, esp_pkt + offset, self->authlen);
     memcpy(&(self->hdr), esp_pkt, sizeof(self->hdr));
-    offset += sizeof(self->hdr);
-    memcpy(self->pl, esp_pkt + offset, self->plen);
-    offset += self->plen;
-    memcpy(&(self->tlr), esp_pkt + offset, sizeof(self->tlr));
-    return self->pl;
+
+    // payload is TCP packet
+    esp_pkt += 8;
+    uint8_t *payload = (uint8_t*)malloc(200);
+    // tcp hdr len
+    int len = *(esp_pkt + 12) / 16 * 4; // 走到 tcp header len 那裡
+    
+    // tcp header
+    memcpy(payload, esp_pkt, len);
+    esp_pkt += len;
+
+    // tcp payload length
+    int tcp_len = esp_len - 8;
+    uint8_t pad_len = *(esp_pkt + esp_len - 8 - len - 12 - 1 - 1); // padlen, nxthdr, auth data, 
+    
+    tcp_len = tcp_len - 12 -1 -1 - pad_len; // esp auth data
+    
+
+
+    // tcp payload
+    for(int i = 0; i < tcp_len-len; i++){
+        payload[len + i] = *(esp_pkt + i);
+    }
+    memcpy(self->pl, payload, len+tcp_len);
+    self->plen = tcp_len; // tcp header + payload
+
+    esp_pkt += tcp_len - len; // tcp_len: tcp header + tcp payload length
+
+    // padding, padding length is the same as last padding
+    memcpy(self->pad, esp_pkt, pad_len);
+    esp_pkt += pad_len;
+    // plen, next
+    memcpy(&(self->tlr), esp_pkt, sizeof(self->tlr));
+    esp_pkt += sizeof(self->tlr);
+
+    // 12 byte authe data
+    memcpy((self->auth), esp_pkt, 12);
+    // self->authlen = 12;
+
+
+    return payload;
 }
 
 Esp *fmt_esp_rep(Esp *self, Proto p)
 {
     // [TODO]: Fill up ESP header and trailer (prepare to send)
     self->hdr.spi = esp_hdr_rec.spi;
-    self->hdr.seq = htons(ntohs(esp_hdr_rec.seq) + 1);
+    self->hdr.seq = htonl(esp_hdr_rec.seq + 1);
     // self->pl = self->dissect;
     // self->pad = self->set_esp_pad(self, );
     self->tlr.nxt = p; // tcp 

@@ -40,10 +40,9 @@ void tx_esp_rep(Dev dev,
         esp.tlr.pad_len + esp.authlen;
 
     net.plen = nb;
-    // puts("esp_done");
 
     net.fmt_rep(&net);
-    // puts("net");
+
     dev.fmt_frame(&dev, net, esp, txp);
 
     dev.tx_frame(&dev);
@@ -76,6 +75,9 @@ ssize_t send_msg(Dev *dev,
     }
 
     tx_esp_rep(*dev, *net, *esp, *txp, buf, nb, 0);
+
+    uint16_t cksm = cal_tcp_cksm(net->ip4hdr, txp->thdr, buf, nb);
+    printf("cksm: %d\n", cksm);
 
     return nb;
 }
