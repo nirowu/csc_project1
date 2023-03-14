@@ -56,6 +56,10 @@ uint8_t *dissect_ip(Net *self, uint8_t *pkt, size_t pkt_len)
 
     // self->x_src_ip = self->ip4hdr.saddr;
     // self->x_dst_ip = self->ip4hdr.daddr;
+    
+    // char *saddr = inet_aton((struct in_addr)self->ip4hdr.saddr);
+    // char *daddr = inet_aton((struct in_addr)self->ip4hdr.daddr);
+    // printf("%d\n", self->ip4hdr.saddr);
     strcpy(self->x_src_ip, &self->ip4hdr.saddr);
     strcpy(self->x_dst_ip, &self->ip4hdr.daddr);
 
@@ -67,6 +71,10 @@ Net *fmt_net_rep(Net *self)
     // [TODO]: Fill up self->ip4hdr (prepare to send)
     self->ip4hdr.check = cal_ipv4_cksm(self->ip4hdr);
     self->ip4hdr.tot_len = htons(sizeof(struct iphdr) + self->plen);
+    
+    // memcpy(&self->ip4hdr.saddr, inet_addr(self->x_src_ip), sizeof(self->ip4hdr.saddr));
+    // memcpy(&self->ip4hdr.daddr, inet_addr(self->x_dst_ip), sizeof(self->ip4hdr.daddr));
+    
     return self;
 }
 
