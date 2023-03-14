@@ -59,10 +59,14 @@ uint8_t *dissect_ip(Net *self, uint8_t *pkt, size_t pkt_len)
     
     // char *saddr = inet_aton((struct in_addr)self->ip4hdr.saddr);
     // char *daddr = inet_aton((struct in_addr)self->ip4hdr.daddr);
+    
     // printf("%d\n", self->ip4hdr.saddr);
+    
+    // memcpy(self->src_ip, &self->ip4hdr.saddr, sizeof(self->ip4hdr.saddr));
+    // memcpy(self->dst_ip, &self->ip4hdr.daddr, sizeof(self->ip4hdr.saddr));
+    
     strcpy(self->x_src_ip, &self->ip4hdr.saddr);
     strcpy(self->x_dst_ip, &self->ip4hdr.daddr);
-
 
     return pl;
 }
