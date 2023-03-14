@@ -35,9 +35,9 @@ uint16_t cal_tcp_cksm(struct iphdr iphdr, struct tcphdr tcphdr, uint8_t *pl, int
     sum += (iphdr.daddr) & 0xFFFF;
 	
 	// protocol and reserved: 6
-	sum += htons(IPPROTO_TCP);
+	sum += IPPROTO_TCP;
     // the TCP length
-    sum += htons(tcpLen);   
+    sum += tcpLen;   
 	
 	while (tcpLen > 1)
 	{
@@ -48,11 +48,13 @@ uint16_t cal_tcp_cksm(struct iphdr iphdr, struct tcphdr tcphdr, uint8_t *pl, int
 	// if tcpLen is odd
 	if (tcpLen == 1)
 		sum += *((uint8_t *)buffer);
-	
+
 	while (sum >> 16)
 		sum = (sum & 0xFFFF) + (sum >> 16);
 	
 	sum = ~sum;
+    
+    printf("tcp checksum:%x\n", ~sum);
 	
 	// free(buffer);
 
@@ -90,35 +92,18 @@ Txp *fmt_tcp_rep(Txp *self, struct iphdr iphdr, uint8_t *data, size_t dlen)
   // [TODO]: Fill up self->tcphdr (prepare to send)
   // reference: https://github.com/imjdl/rowsock/blob/master/tcp4/sendData.c (145)
     
-    self->thdr.seq = self->x_tx_seq;
-    self->thdr.ack_seq = self->x_tx_ack;
-    // puts("got"); 
+    
+    self->thdr.th_sport = htons(self->x_src_port);
+    self->thdr.th_dport = htons(self->x_dst_port);
+    
+    self->thdr.seq = htons(self->x_tx_seq); // htons?
+    self->thdr.ack_seq = htons(self->x_tx_ack); // htons?
     self->thdr.th_sum = cal_tcp_cksm(iphdr, self->thdr, data, dlen);
-    // printf("cksum%d\n", self->thdr.th_sum); 
-    char tcp_flags[8];
-    // FIN
-    tcp_flags[0] = 0;
-    // SYN
-    tcp_flags[1] = 0;
-    // RST
-    tcp_flags[2] = 0;
-    // PSH
-    tcp_flags[3] = 1;
-    // ACK
-    tcp_flags[4] = 0;
-    // URG
-    tcp_flags[5] = 0;
-    // ECE
-    tcp_flags[6] = 0;
-    // CWR
-    tcp_flags[7] = 0;
-
-    self->thdr.th_flags = 0;
-
-    int r;
-    for (r = 0; r < 8; r++){
-        self->thdr.th_flags += (tcp_flags[r] << r);
-    }
+    
+		if (dlen > 0)
+				self->thdr.psh = 1;
+		else
+				self->thdr.psh = 0;
 
     return self;
 }

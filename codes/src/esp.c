@@ -148,7 +148,7 @@ Esp *fmt_esp_rep(Esp *self, Proto p)
 {
     // [TODO]: Fill up ESP header and trailer (prepare to send)
     self->hdr.spi = esp_hdr_rec.spi;
-    self->hdr.seq = esp_hdr_rec.seq + 1;
+    self->hdr.seq = htons(ntohs(esp_hdr_rec.seq) + 1);
     // self->pl = self->dissect;
     // self->pad = self->set_esp_pad(self, );
     self->tlr.nxt = p; // tcp 
