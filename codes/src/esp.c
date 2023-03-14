@@ -7,9 +7,6 @@
 #include "esp.h"
 #include "transport.h"
 #include "hmac.h"
-#ifndef SHA_BLOCKSIZE
-#define SHA_BLOCKSIZE 64
-#endif
 
 
 EspHeader esp_hdr_rec;
