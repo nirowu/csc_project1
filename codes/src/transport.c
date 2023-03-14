@@ -74,10 +74,10 @@ uint8_t *dissect_tcp(Net *net, Txp *self, uint8_t *segm, size_t segm_len)
     self->plen = (uint16_t)segm_len - self->hdrlen;
     memcpy(self->pl, segm + segm_len, self->plen);
 
-    if (strcmp(net->x_src_ip, net->src_ip) == 0) {
-        self->x_tx_seq = self->thdr.th_seq + self->plen;
-        self->x_tx_ack = self->thdr.th_ack;
-    }
+    // if (strcmp(net->x_src_ip, net->src_ip) == 0) {
+    //     self->x_tx_seq = self->thdr.th_seq + self->plen;
+    //     self->x_tx_ack = self->thdr.th_ack;
+    // }
 
     if (strcmp(net->x_src_ip, net->dst_ip) == 0) {
         self->x_tx_seq = self->thdr.th_ack;

@@ -46,12 +46,12 @@ uint16_t ipv4_checksum(struct iphdr *data, size_t len) {
     uint32_t sum = 0;
 
     while (len > 1) {
-        sum += *buf++;
+        sum += (htons(*buf++));
         len -= 2;
     }
-
+ 
     if (len == 1) {
-        sum += *(uint8_t *)buf;
+        sum += (*buf)&(htons(0xff00));
     }
 
     while (sum >> 16) {
@@ -65,6 +65,7 @@ uint16_t cal_ipv4_cksm(struct iphdr iphdr)
 {
     // [TODO]: Finish IP checksum calculation
     puts("ipv4");
+    iphdr.check = 0;
     uint16_t sum = ipv4_checksum(&iphdr, iphdr.ihl * 4);
     printf("sum:%x\n", htons(sum));
     iphdr.check = htons(sum);
