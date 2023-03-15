@@ -64,10 +64,10 @@ uint16_t ipv4_checksum(struct iphdr *data, size_t len) {
 uint16_t cal_ipv4_cksm(struct iphdr iphdr)
 {
     // [TODO]: Finish IP checksum calculation
-    // puts("ipv4");
+    //puts("ipv4");
     iphdr.check = 0;
     uint16_t sum = ipv4_checksum(&iphdr, iphdr.ihl * 4);
-    // printf("sum:%x\n", htons(sum));
+    printf("sum:%x\n", htons(sum));
     iphdr.check = htons(sum);
     return iphdr.check;
 }

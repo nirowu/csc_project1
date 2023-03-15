@@ -77,39 +77,39 @@ void fmt_frame(Dev *self, Net net, Esp esp, Txp txp)
     // network layer
     memcpy(self->frame + offset, &net.ip4hdr, net.hdrlen);
     offset += net.hdrlen;
-    printf("net:%ld\n", net.hdrlen);
+    // printf("net:%ld\n", net.hdrlen);
     // esp hdr
     memcpy(self->frame + offset, &esp.hdr , sizeof(esp.hdr));
     offset += sizeof(esp.hdr);
-    printf("esp hdr:%ld\n", sizeof(esp.hdr));
+    // printf("esp hdr:%ld\n", sizeof(esp.hdr));
 
     // tcp hdr
     memcpy(self->frame + offset, &txp.thdr, txp.hdrlen);
     offset += txp.hdrlen;
-    printf("tcp hdr:%d\n", txp.hdrlen);
+    // printf("tcp hdr:%d\n", txp.hdrlen);
 
     // tcp payload
     memcpy(self->frame + offset, txp.pl, txp.plen);
     offset += txp.plen;
     
-    printf("tcp payload:%d\n", txp.plen);
+    // printf("tcp payload:%d\n", txp.plen);
     
     // esp padding
     memcpy(self->frame + offset, esp.pad, esp.tlr.pad_len);
     offset += esp.tlr.pad_len;
-    printf("esp padding:%d\n", esp.tlr.pad_len);
+    // printf("esp padding:%d\n", esp.tlr.pad_len);
 
     // esp trailer
     memcpy(self->frame + offset, &esp.tlr, sizeof(esp.tlr));
     offset += sizeof(esp.tlr);
-    printf("esp trailer:%ld\n", sizeof(esp.tlr));
+    // printf("esp trailer:%ld\n", sizeof(esp.tlr));
 
     // esp auth
     memcpy(self->frame + offset, esp.auth, esp.authlen);
     offset += esp.authlen;
 
     self->framelen = offset;
-    printf("frame :%ld\n", esp.authlen);
+    // printf("frame :%d\n", esp.authlen);
     return;
 }
 
