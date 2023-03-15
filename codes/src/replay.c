@@ -76,8 +76,8 @@ ssize_t send_msg(Dev *dev,
 
     tx_esp_rep(*dev, *net, *esp, *txp, buf, nb, 0);
 
-    uint16_t cksm = cal_tcp_cksm(net->ip4hdr, txp->thdr, buf, nb);
-    printf("cksm: %d\n", cksm);
+    // uint16_t cksm = cal_tcp_cksm(net->ip4hdr, txp->thdr, buf, nb);
+    // printf("cksm: %d\n", cksm);
 
     return nb;
 }

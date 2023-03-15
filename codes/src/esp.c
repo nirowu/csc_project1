@@ -58,11 +58,7 @@ void get_ik(int type, uint8_t *key)
 
     memcpy(key, buf + (offset + sizeof(struct sadb_key)), keylen);
 
-    // printf("keylen:%d\n", keylen);
-    // for (int i = 0; i < keylen; i++) {
-    //     printf("%02x ", key[i]);
-    // }
-    // printf("\n");   
+
 
     close(sockfd);
     return;
@@ -114,6 +110,8 @@ uint8_t *set_esp_auth(Esp *self,
     nb += sizeof(self->hdr);
     memcpy(buff + nb, self->pl, self->plen);
     nb += self->plen;
+    // memcpy(buff + nb, self->pad, self->tlr.pad_len)l;
+    // nb += self->tlr.pal
     memcpy(buff + nb, &self->tlr, sizeof(self->tlr));
     nb += sizeof(self->tlr);
 

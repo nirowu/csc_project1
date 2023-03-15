@@ -89,7 +89,6 @@ void ipsec_hijack(char *INTERFACE)
             }
             /* send the message you input on the screen to server */
             send_msg(&dev, &net, &esp, &txp, str);
-            
             *state = WAIT_SECRET;
         }
     }
