@@ -10,53 +10,50 @@
 #include "net.h"
 #include "transport.h"
 
-uint16_t cal_tcp_cksm(struct iphdr iphdr, struct tcphdr tcphdr, uint8_t *pl, int plen)
+uint16_t cal_tcp_cksm(struct iphdr iphdr, struct tcphdr tcphder, uint8_t *pl, int plen)
 {
-  // [TODO]: Finish TCP checksum calculation
-  // reference: https://gist.github.com/david-hoze/0c7021434796997a4ca42d7731a7073a
-  // reference: https://github.com/imjdl/rowsock/blob/master/tcp4/sendData.c (320)
+    // [TODO]: Finish TCP checksum calculation
 
-	unsigned int sum = 0;
+    uint16_t    hdrlen = tcphder.th_off * 4,
+                len = hdrlen + plen;
 
-	uint8_t *buffer = (uint8_t *)malloc(IP_MAXPACKET * sizeof(uint8_t));
-
-	// TCP segment
-	memcpy(buffer, &tcphdr, sizeof(struct tcphdr));
-	memcpy(buffer + sizeof(struct tcphdr), pl, plen);
-	uint8_t tcpLen = sizeof(struct tcphdr) + plen; /* TCP segment length */
-
-	// add psuedo IP header
-	// source IP
-    sum += (iphdr.saddr >> 16) & 0xFFFF; 
+    uint32_t    sum = 0;
+    
+    sum += (iphdr.saddr >> 16) & 0xFFFF;
     sum += (iphdr.saddr) & 0xFFFF;
-
-    // destination IP
     sum += (iphdr.daddr >> 16) & 0xFFFF;
     sum += (iphdr.daddr) & 0xFFFF;
-	
-	// protocol and reserved: 6
-	sum += htons(IPPROTO_TCP);
-    // the TCP length
-    sum += htons(tcpLen);   
-	
-	while (tcpLen > 1)
-	{
-		sum += *buffer++;
-		tcpLen -= 2;
-	}
 
-	// if tcpLen is odd
-	if (tcpLen == 1)
-		sum += *((uint8_t *)buffer);
-	
-	while (sum >> 16)
-		sum = (sum & 0xFFFF) + (sum >> 16);
-	
-	sum = ~sum;
-	
-	// free(buffer);
+    // protocol and reserved
+    sum += htons(IPPROTO_TCP);
+    sum += htons(len);
 
-  return (uint16_t)sum;
+    // tcp header 
+    uint16_t *tcp = (uint16_t*)(void *)&tcphder;
+
+    while (hdrlen > 1) {
+        sum += (*tcp++);
+        hdrlen -= 2;
+    }
+    // tcp payload 
+    tcp = (uint16_t*)pl;
+    len = plen;
+
+    while (len > 1){
+        sum += (*tcp++);
+        len -= 2;
+    }
+    if (len == 1){
+        sum += ((*tcp) &htons(0xff00));
+    }
+
+    while (sum >> 16){
+        sum = (sum & 0xffff) + (sum >> 16);
+    }
+    
+    sum = ~sum;
+    return (uint16_t)sum;
+
 }
 
 uint8_t *dissect_tcp(Net *net, Txp *self, uint8_t *segm, size_t segm_len)
@@ -65,69 +62,46 @@ uint8_t *dissect_tcp(Net *net, Txp *self, uint8_t *segm, size_t segm_len)
     // (Check IP addr & port to determine the next seq and ack value)
     // Return payload of TCP
 
-    // check IP addrress and port
+    struct tcphdr *tcp = (struct tcphdr *)segm;
+    memcpy(&self->thdr, tcp, sizeof(struct tcphdr));
+    self->hdrlen = (uint8_t)tcp->th_off * 4;
 
-    memcpy(&self->thdr, segm, sizeof(self->thdr));
-    self->hdrlen = self->thdr.doff * 4;
-    self->plen = (uint16_t)segm_len - self->hdrlen;
-    memcpy(self->pl, segm + segm_len, self->plen);
+    uint8_t* pl = segm;
+    uint8_t count = self->hdrlen;
 
-    if (strcmp(net->x_src_ip, net->src_ip) == 0) {
-        self->x_tx_seq = self->thdr.th_seq + self->plen;
-        self->x_tx_ack = self->thdr.th_ack;
+    while(pl[count] != 0x00 && pl[count+1] != 0x01){
+        count++;
     }
+    count++;
 
-    if (strcmp(net->x_src_ip, net->dst_ip) == 0) {
-        self->x_tx_seq = self->thdr.th_ack;
-        self->x_tx_ack = self->thdr.th_seq + self->plen;
-    }
+    self->pl = segm + self->hdrlen;
+    self->plen = count-(self->hdrlen);
 
-    return self->pl;
+    return  self->pl;
 }
 
 Txp *fmt_tcp_rep(Txp *self, struct iphdr iphdr, uint8_t *data, size_t dlen)
 {
-  // [TODO]: Fill up self->tcphdr (prepare to send)
-  // reference: https://github.com/imjdl/rowsock/blob/master/tcp4/sendData.c (145)
-    
-    self->thdr.seq = self->x_tx_seq;
-    self->thdr.ack_seq = self->x_tx_ack;
-    // puts("got"); 
+    // [TODO]: Fill up self->tcphdr (prepare to send)
+    self->thdr.th_sport = htons(self->x_src_port);
+    self->thdr.th_dport = htons(self->x_dst_port);
+
+    self->thdr.ack_seq = htonl(self->x_tx_ack);
+    self->thdr.seq = htonl(self->x_tx_seq);
+    memcpy(self->pl, data, dlen);
+
+    self->thdr.psh = self->thdr.psh;
+    self->thdr.th_sum= 0;
     self->thdr.th_sum = cal_tcp_cksm(iphdr, self->thdr, data, dlen);
-    // printf("cksum%d\n", self->thdr.th_sum); 
-    char tcp_flags[8];
-    // FIN
-    tcp_flags[0] = 0;
-    // SYN
-    tcp_flags[1] = 0;
-    // RST
-    tcp_flags[2] = 0;
-    // PSH
-    tcp_flags[3] = 1;
-    // ACK
-    tcp_flags[4] = 0;
-    // URG
-    tcp_flags[5] = 0;
-    // ECE
-    tcp_flags[6] = 0;
-    // CWR
-    tcp_flags[7] = 0;
-
-    self->thdr.th_flags = 0;
-
-    int r;
-    for (r = 0; r < 8; r++){
-        self->thdr.th_flags += (tcp_flags[r] << r);
-    }
-
+    
     return self;
 }
 
 inline void init_txp(Txp *self)
 {
-	self->pl = (uint8_t *)malloc(IP_MAXPACKET * sizeof(uint8_t));
-	self->hdrlen = sizeof(struct tcphdr);
+    self->pl = (uint8_t *)malloc(IP_MAXPACKET * sizeof(uint8_t));
+    self->hdrlen = sizeof(struct tcphdr);
 
-	self->dissect = dissect_tcp;
-	self->fmt_rep = fmt_tcp_rep;
+    self->dissect = dissect_tcp;
+    self->fmt_rep = fmt_tcp_rep;
 }

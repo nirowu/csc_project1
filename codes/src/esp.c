@@ -2,21 +2,16 @@
 #include <string.h>
 #include <unistd.h>
 #include <linux/pfkeyv2.h>
-#include <sys/uio.h>
-#include <errno.h>
+
 #include "esp.h"
 #include "transport.h"
 #include "hmac.h"
-#ifndef SHA_BLOCKSIZE
-#define SHA_BLOCKSIZE 64
-#endif
-
 
 EspHeader esp_hdr_rec;
 
 void get_ik(int type, uint8_t *key)
 {
-    // [TODO]: Dump authentication key from security association database (SADB)
+ // [TODO]: Dump authentication key from security association database (SADB)
     // (Ref. RFC2367 Section 2.3.4 & 2.4 & 3.1.10)
 
     int     sockfd,
@@ -32,7 +27,7 @@ void get_ik(int type, uint8_t *key)
     req.sadb_msg_pid = (mypid);
     req.sadb_msg_seq = (1);
 
-    sockfd = socket(AF_KEY, SOCK_RAW, PF_KEY_V2);
+    sockfd = socket(PF_KEY, SOCK_RAW, PF_KEY_V2);
     if (sockfd < 0) {
         perror("socket");
         exit(EXIT_FAILURE);
@@ -61,16 +56,10 @@ void get_ik(int type, uint8_t *key)
 
     memcpy(key, buf + (offset + sizeof(struct sadb_key)), keylen);
 
-    // printf("key: %2x\n", key);
-    // printf("keylen:%d\n", keylen);
-    // for (int i = 0; i < keylen; i++) {
-    //     printf("%02x ", key[i]);
-    // }
-    // printf("\n");   
     close(sockfd);
     return;
-
 }
+
 void get_esp_key(Esp *self)
 {
     get_ik(SADB_SATYPE_ESP, self->esp_key);
@@ -78,18 +67,25 @@ void get_esp_key(Esp *self)
 
 uint8_t *set_esp_pad(Esp *self)
 {
-    // [TODO]: Fill up self->pad and self->pad_len (Ref. RFC4303 Section 2.4)
-    int pad_len = 4* ((self->plen + 4 - 1) / 4);
-    int w = pad_len - self->plen;
-    self->tlr.pad_len = (uint8_t)w;
-
-    // Generating the padding field
-    int r;
-    for (r = 0; r < w - 1; r++)
-        self->pad[r] = rand() & 0xff;
     
-    self->pad[w-1] = (uint8_t) w;   
-    memcpy(self->pl + self->plen, self->pad, w);
+    // [TODO]: Fiill up self->pad and self->pad_len (Ref. RFC4303 Section 2.4)
+
+	if ((self->plen % 4)!= 0) {
+		self->tlr.pad_len = 2 + (4-(self->plen % 4));
+	}
+    else {
+		self->tlr.pad_len = 2;
+	}
+
+	int n = (int)(self->tlr.pad_len);
+
+	if (n != 0) {
+		uint8_t *pad = (uint8_t *)realloc(self->pad, n*sizeof(uint8_t));
+		for (int i = 1; i <= n; i++){
+			pad[i - 1] = (uint8_t)(i);
+		}
+	}
+
     return self->pad;
 }
 
@@ -107,16 +103,16 @@ uint8_t *set_esp_auth(Esp *self,
     size_t esp_keylen = 16;
     size_t nb = 0;  // Number of bytes to be hashed
     ssize_t ret;
-
     // [TODO]: Put everything needed to be authenticated into buff and add up nb
 
-    memcpy(buff, &self->hdr, sizeof(self->hdr));
-    nb += sizeof(self->hdr);
-    memcpy(buff + nb, self->pl, self->plen);
-    nb += self->plen;
-    memcpy(buff + nb, &self->tlr, sizeof(self->tlr));
-    nb += sizeof(self->tlr);
-
+	memcpy(buff, &self->hdr, sizeof(struct esp_header));
+	nb += sizeof(struct esp_header);
+	memcpy(buff + nb, self->pl, self->plen);
+	nb += self->plen;
+	memcpy(buff + nb, self->pad, self->tlr.pad_len);
+	nb += self->tlr.pad_len;
+	memcpy(buff+nb, &self->tlr, sizeof(struct esp_trailer));
+	nb += sizeof(struct esp_trailer);
 
     ret = hmac(self->esp_key, esp_keylen, buff, nb, self->auth);
 
@@ -134,28 +130,25 @@ uint8_t *dissect_esp(Esp *self, uint8_t *esp_pkt, size_t esp_len)
     // [TODO]: Collect information from esp_pkt.
     // Return payload of ESP
 
-    self->plen = esp_len - (sizeof(self->hdr) + sizeof(self->tlr));
-    size_t offset = 0;
-    memcpy(&(self->hdr), esp_pkt, sizeof(self->hdr));
-    offset += sizeof(self->hdr);
-    memcpy(self->pl, esp_pkt + offset, self->plen);
-    offset += self->plen;
-    memcpy(&(self->tlr), esp_pkt + offset, sizeof(self->tlr));
+    // header
+    struct esp_header *esphdr = (struct esp_header *)esp_pkt;
+    self->hdr.seq = esphdr->seq;
+    self->hdr.spi = esphdr->spi;
+    
+    // payload
+    self->pl = esp_pkt + sizeof(self->hdr);
+    self->plen = esp_len - sizeof(self->hdr);
+
     return self->pl;
 }
 
 Esp *fmt_esp_rep(Esp *self, Proto p)
 {
     // [TODO]: Fill up ESP header and trailer (prepare to send)
-    self->hdr.spi = esp_hdr_rec.spi;
-    self->hdr.seq = esp_hdr_rec.seq + 1;
-    // self->pl = self->dissect;
-    // self->pad = self->set_esp_pad(self, );
-    self->tlr.nxt = p; // tcp 
-    // self->auth = self->set_auth;
+	self->hdr.seq = htonl(ntohl(self->hdr.seq) + 1);
+	self->tlr.nxt = (uint8_t)p; // protocol
 
-    return self;
-
+	return self;
 }
 
 void init_esp(Esp *self)

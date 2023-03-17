@@ -12,30 +12,29 @@
 #include "transport.h"
 #include "esp.h"
 
-uint16_t ipv4_checksum(const void *data, size_t len) {
-    const uint16_t *buf = data;
-    uint32_t sum = 0;
-
-    while (len > 1) {
-        sum += *buf++;
-        len -= 2;
-    }
-
-    if (len == 1) {
-        sum += *(uint8_t *)buf;
-    }
-
-    sum = (sum >> 16) + (sum & 0xffff);
-    sum += (sum >> 16);
-
-    return (uint16_t)~sum;
-}
-
 uint16_t cal_ipv4_cksm(struct iphdr iphdr)
 {
     // [TODO]: Finish IP checksum calculation
-    iphdr.check = ipv4_checksum(&iphdr, sizeof(iphdr));
-    return iphdr.check;
+    iphdr.check = 0;
+
+    uint16_t *addr = (uint16_t *) &iphdr;
+    uint32_t cnt = iphdr.ihl * 4;
+    unsigned long sum = 0;
+    
+    while (cnt > 1) {
+        sum += *addr++;
+        cnt -= 2;
+    }
+    if (cnt == 1) {
+        sum += ((*addr)&htons(0xff00));
+    }
+    while (sum >> 16) {
+        sum = (sum >> 16) + (sum & 0xffff);
+    }
+    sum = ~sum;
+    iphdr.check = (uint16_t)sum;
+
+    return ((uint16_t)sum);
 }
 
 uint8_t *dissect_ip(Net *self, uint8_t *pkt, size_t pkt_len)
@@ -43,41 +42,34 @@ uint8_t *dissect_ip(Net *self, uint8_t *pkt, size_t pkt_len)
     // [TODO]: Collect information from pkt.
     // Return payload of network layer
 
+    struct iphdr *ip = (struct iphdr *)pkt;
+    memcpy(&(self->ip4hdr), ip, sizeof(struct iphdr));
+	self->hdrlen = (size_t) ip->ihl * 4;
+    self->plen = pkt_len - self->hdrlen;
 
-    self->plen= (uint16_t) (pkt_len - sizeof(self->ip4hdr));
-    uint8_t *pl = (uint8_t*) malloc(self->plen);
-
-    memcpy(&self->ip4hdr, pkt, sizeof(self->ip4hdr));
-    memcpy(pl, pkt + sizeof(self->ip4hdr), self->plen);
-
-    self->pro = self->ip4hdr.protocol;
-    self->hdrlen = self->ip4hdr.ihl * 4; 
-    self->ip4hdr.tot_len = (uint16_t)pkt_len;
-
-    // self->x_src_ip = self->ip4hdr.saddr;
-    // self->x_dst_ip = self->ip4hdr.daddr;
+    // store the ip address into self->src_ip and self->dst_ip
+    struct sockaddr_in src, dst;
+	bzero(&src, sizeof(src));
+	bzero(&dst, sizeof(dst));
+	src.sin_addr.s_addr = ip->saddr;
+	dst.sin_addr.s_addr = ip->daddr;
+    strcpy(self->src_ip, inet_ntoa(src.sin_addr));
+    strcpy(self->dst_ip, inet_ntoa(dst.sin_addr));
     
-    // char *saddr = inet_aton((struct in_addr)self->ip4hdr.saddr);
-    // char *daddr = inet_aton((struct in_addr)self->ip4hdr.daddr);
-    
-    // printf("%d\n", self->ip4hdr.saddr);
-    
-    // memcpy(self->src_ip, &self->ip4hdr.saddr, sizeof(self->ip4hdr.saddr));
-    // memcpy(self->dst_ip, &self->ip4hdr.daddr, sizeof(self->ip4hdr.saddr));
-    
-    strcpy(self->x_src_ip, &self->ip4hdr.saddr);
-    strcpy(self->x_dst_ip, &self->ip4hdr.daddr);
+    // get the ip protocol
+    self->pro = ip->protocol;
 
-    return pl;
+    return pkt + self->hdrlen;
 }
+
 Net *fmt_net_rep(Net *self)
 {
     // [TODO]: Fill up self->ip4hdr (prepare to send)
-    self->ip4hdr.check = cal_ipv4_cksm(self->ip4hdr);
+
     self->ip4hdr.tot_len = htons(sizeof(struct iphdr) + self->plen);
     
-    // memcpy(&self->ip4hdr.saddr, inet_addr(self->x_src_ip), sizeof(self->ip4hdr.saddr));
-    // memcpy(&self->ip4hdr.daddr, inet_addr(self->x_dst_ip), sizeof(self->ip4hdr.daddr));
+    self->ip4hdr.check = 0;
+    self->ip4hdr.check = cal_ipv4_cksm(self->ip4hdr);
     
     return self;
 }

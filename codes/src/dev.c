@@ -39,7 +39,7 @@ inline static struct sockaddr_ll init_addr(char *name)
     bzero(&addr, sizeof(addr));
 
     // [TODO]: Fill up struct sockaddr_ll addr which will be used to bind in func set_sock_fd
-    addr.sll_family = AF_PACKET;
+    addr.sll_family = PF_PACKET;
     addr.sll_protocol = htons(ETH_P_ALL);
     addr.sll_ifindex = if_nametoindex(name);
     
@@ -69,22 +69,48 @@ void fmt_frame(Dev *self, Net net, Esp esp, Txp txp)
 {
     // [TODO]: store the whole frame into self->frame
     // and store the length of the frame into self->framelen
-    self->framelen = sizeof(self->linkhdr) + sizeof(net.ip4hdr) + sizeof(esp.hdr) + sizeof(txp.thdr) + txp.plen + sizeof(esp.tlr) + esp.authlen;
+    // self->framelen = LINKHDRLEN + sizeof + sizeof(esp.hdr) + sizeof(txp.thdr) + txp.plen + sizeof(esp.tlr) + esp.authlen;
+    
     uint16_t offset = 0;
-    memcpy(self->frame, &self->linkhdr, sizeof(self->linkhdr));
-    offset += sizeof(self->linkhdr);
-    memcpy(self->frame + offset, &net.ip4hdr, sizeof(net.ip4hdr));
-    offset += sizeof(net.ip4hdr);
+    // link layer
+    memcpy(self->frame, self->linkhdr, LINKHDRLEN);
+    offset += LINKHDRLEN;
+    // network layer
+    memcpy(self->frame + offset, &net.ip4hdr, net.hdrlen);
+    offset += net.hdrlen;
+    // printf("net:%ld\n", net.hdrlen);
+    // esp hdr
     memcpy(self->frame + offset, &esp.hdr , sizeof(esp.hdr));
     offset += sizeof(esp.hdr);
-    memcpy(self->frame + offset, &txp.thdr, sizeof(txp.thdr));
-    offset += sizeof(txp.thdr);
-    memcpy(self->frame + offset, &txp.pl, sizeof(txp.pl));
-    offset += sizeof(txp.pl);
+    // printf("esp hdr:%ld\n", sizeof(esp.hdr));
+
+    // tcp hdr
+    memcpy(self->frame + offset, &txp.thdr, txp.hdrlen);
+    offset += txp.hdrlen;
+    // printf("tcp hdr:%d\n", txp.hdrlen);
+
+    // tcp payload
+    memcpy(self->frame + offset, txp.pl, txp.plen);
+    offset += txp.plen;
+    
+    // printf("tcp payload:%d\n", txp.plen);
+    
+    // esp padding
+    memcpy(self->frame + offset, esp.pad, esp.tlr.pad_len);
+    offset += esp.tlr.pad_len;
+    // printf("esp padding:%d\n", esp.tlr.pad_len);
+
+    // esp trailer
     memcpy(self->frame + offset, &esp.tlr, sizeof(esp.tlr));
     offset += sizeof(esp.tlr);
-    memcpy(self->frame + offset, &esp.auth, sizeof(esp.auth));
-    offset += sizeof(esp.auth);
+    // printf("esp trailer:%ld\n", sizeof(esp.tlr));
+
+    // esp auth
+    memcpy(self->frame + offset, esp.auth, esp.authlen);
+    offset += esp.authlen;
+
+    self->framelen = offset;
+    // printf("frame :%d\n", esp.authlen);
     return;
 }
 
